@@ -2,6 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
+// curl -X POST http://localhost:8080/login -d "{""login"":""admin"",""password"":123}"
 package main
 
 import (
@@ -26,7 +27,6 @@ func main() {
 
 
 if _, err := os.Stat("./out/client.crt"); err == nil {  // On vérifie si le certificat existe ou non
-
   connect()
   } else if os.IsNotExist(err) {
 	Register()
@@ -39,6 +39,7 @@ func connect() {
 	clientKeyFile := flag.String("clientkey", "./out/client.key", "Required, the file name of the clients's private key file")
 	srvhost := flag.String("srvhost", "localhost", "The server's host name")
 	caCertFile := flag.String("cacert", "./out/ExempleCA.crt", "Required, the name of the CA that signed the server's certificate")
+	secret := flag.String("secret","","Required")
 	var cert tls.Certificate
 	var err error
 	if *clientCertFile != "" && *clientKeyFile != "" {
