@@ -8,17 +8,23 @@ import (
 	"fmt"
     "github.com/google/uuid"
     "io/ioutil"
-    "os"
-    "os/exec"
     "strings"
     "unicode"
+    "github.com/square/certstrap/pkix"
+    "time"
+
+
+
+
+
 )
 type User struct {
 	Login   string  `json:"login"`
 	Password int64 `json:"password"`
 }
-type Secret struct {
+type Register struct {
     Secret string `json:"secret"`
+    Cert_request string `json:"cert_request"`
 }
 var secret=uuid.New().String()
 
@@ -60,40 +66,52 @@ func post(w http.ResponseWriter, r *http.Request) {
 func cert(w http.ResponseWriter, r *http.Request) {
     log.Printf("Received %s request for host %s from IP address %s and X-FORWARDED-FOR %s",
 			r.Method, r.Host, r.RemoteAddr, r.Header.Get("X-FORWARDED-FOR"))
-    var s Secret
-		body, err := ioutil.ReadAll(r.Body)
-        fmt.Print("in")
-        fmt.Print(s.Secret,"oui")
-        fmt.Print(string(body))
-		if err != nil {
-			body = []byte(fmt.Sprintf("error reading request body: %s", err))
-		}
 
-        if(stringInSlice(secret,get_secret("secrets.txt"))){
-            write_secret("secrets.txt",secret,false)
-            fmt.Print("secret supprimé")
+    var reg Register
+        if r.Body == nil {
+            http.Error(w, "Please send a request body", 400)
+            return
         }
-
-        // recreate cliente csr
-        clientcsr, err := os.Create("./out/client.csr")
+        err := json.NewDecoder(r.Body).Decode(&reg)
         if err != nil {
+            http.Error(w, err.Error(), 400)
+            return
+        }
+		//if err != nil {
+		//	body = []byte(fmt.Sprintf("error reading request body: %s", err))
+		//}
+        if(stringInSlice(reg.Secret,get_secret("secrets.txt"))){ // We check if the secret is in the database
+            write_secret("secrets.txt",reg.Secret,false)
+            fmt.Print("secret supprimé")
+            if err != nil {
             panic(err)
         }
-        //Ne pas arreter le serveur
-        _, err2 := clientcsr.WriteString(string(body))
-        if err2 != nil {
-            panic(err)
-        }
-        clientcsr.Close()      
-        // On signe le certificat
-        cmd2 := exec.Command("certstrap", "sign", "client", "--CA","ExempleCA")
-        cmd2.Run()
+            var crtOut *pkix.Certificate
+            var csr *pkix.CertificateSigningRequest
+            
 
-        // On le renvoie
-        signed_cert, _ := ioutil.ReadFile("./out/client.crt")
-        w.Header().Set("Content-Type", "application/json")
-        w.WriteHeader(http.StatusNotFound)
-        w.Write(signed_cert)
+            crtbytes,_:= ioutil.ReadFile("./out/ExempleCA.crt")
+            crt,_:=pkix.NewCertificateFromPEM(crtbytes)
+
+            keybytes,_:= ioutil.ReadFile("./out/ExempleCA.key")
+            key,_:=pkix.NewKeyFromPrivateKeyPEM(keybytes)
+
+            csr,err:= pkix.NewCertificateSigningRequestFromPEM([]byte(reg.Cert_request))
+            if(err!=nil){
+                fmt.Printf("err")
+            }
+            expire_time,_:=time.Parse("020106 150405", "220902 050316")
+		    crtOut, err = pkix.CreateCertificateHost(crt, key, csr,expire_time )
+            
+            crtBytes, _ := crtOut.Export()
+
+            w.Header().Set("Content-Type", "application/json")
+            w.WriteHeader(http.StatusNotFound)
+            w.Write(crtBytes)
+        } else {resp := fmt.Sprintf("Le secret fourni n'est pas le bon") // Si le secret n'est pas dans la liste, on renvoie un message négatif
+		w.Write([]byte(resp))
+		}
+        
 }
 
 func notFound(w http.ResponseWriter, r *http.Request) {
@@ -117,7 +135,7 @@ func get_secret(secrets string) []string{ //fonction permettant de transformer l
 	fmt.Println("File reading error", err)
 }
 f := func(c rune) bool {
-	return !unicode.IsLetter(c) && !unicode.IsNumber(c)
+	return unicode.IsSpace(c) || c ==','
 }
 var secrets_list=strings.FieldsFunc(string(data), f)
 return secrets_list
@@ -145,8 +163,10 @@ func write_secret(secrets string,code string,a bool){ //fonction permettant de t
 func stringInSlice(a string, list []string) bool { //Vérifie la présence d'un élement dans une liste
     for _, b := range list {
         if b == a {
+            fmt.Print("TRUE")
             return true}
     }
+    fmt.Print("FALSE")
     return false
 }
 
@@ -164,3 +184,7 @@ func del_el(a string, list []string ) []string { // Permet de supprimer un élem
 	return list
 }
 
+func sign_certificat(){
+
+
+}

@@ -17,19 +17,22 @@ import (
 	"net/http"
 	"net/url"
 	"time"
-	"os/exec"
-	"strings"
+	"encoding/json"
+	"github.com/square/certstrap/pkix"
+
+
 
 )
 
 func main() {
+	secret := flag.String("secret","","Secret fourni par l'administrateur")
 	flag.Parse()
 
 
 if _, err := os.Stat("./out/client.crt"); err == nil {  // On vérifie si le certificat existe ou non
   connect()
   } else if os.IsNotExist(err) {
-	Register()
+	Register(*secret)
   } 
 	
 }
@@ -39,7 +42,6 @@ func connect() {
 	clientKeyFile := flag.String("clientkey", "./out/client.key", "Required, the file name of the clients's private key file")
 	srvhost := flag.String("srvhost", "localhost", "The server's host name")
 	caCertFile := flag.String("cacert", "./out/ExempleCA.crt", "Required, the name of the CA that signed the server's certificate")
-	secret := flag.String("secret","","Required")
 	var cert tls.Certificate
 	var err error
 	if *clientCertFile != "" && *clientKeyFile != "" {
@@ -89,29 +91,54 @@ func connect() {
 	fmt.Printf("\nResponse from server: \n\tHTTP status: %s\n\tBody: %s\n", resp.Status, body)
 }
 
-func Register(){
-
-	//secret := flag.String("secret","","Secret fourni par l'administrateur")
+func Register(secret string){
 	// On génère la clé privé et la demande de certificat
-	cmd := exec.Command("certstrap", "request-cert", "--domain", "client")
-    cmd.Stdin = strings.NewReader("\n\n")
-    cmd.Run()
+	var key *pkix.Key
+	var err error
+	key, _ = pkix.CreateRSAKey(2048)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Create RSA Key error:", err)
+		os.Exit(1)
+	}
+	keybytes,_:=key.ExportPrivate()
+	private_key, err := os.Create("./out/client.key")
+	if err != nil {
+            panic(err)
+        }
+        _, err2 := private_key.WriteString(string(keybytes))
+		if err2 != nil {
+            panic(err)
+        }
+	
+	stringArray := []string {"Client"}
 
-	//_,err := http.Post("http://localhost:8080/cert","application/json",bytes.NewBuffer([]byte(*secret)))
-	//if err != nil {
-	//	log.Fatalf("unable to create http request due to error %s", err)
-	//}
-    cert_request, _ := ioutil.ReadFile("./out/client.csr")
-	req,err := http.Post("http://localhost:8080/cert","application/json",bytes.NewBuffer([]byte(string(cert_request))))
+	csr,_ := pkix.CreateCertificateSigningRequest(key, "", nil, stringArray, nil, "", "", "", "", "client")
+	csrBytes, err := csr.Export()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Print certificate request error:", err)
+			os.Exit(1)
+		} 
+	cert_request,err :=os.Create("./out/client.csr")
+	if err != nil {
+		panic(err)
+	}
+	cert_request.WriteString(string(csrBytes))
+
+	values := map[string]string{"secret": secret, "cert_request": string(csrBytes)}
+	jsonValue, _ := json.Marshal(values)
+	resp, err := http.Post("http://localhost:8080/cert", "application/json", bytes.NewBuffer(jsonValue))
 	if err != nil {
 		log.Fatalf("unable to create http request due to error %s", err)
 	}
-	body, _ := ioutil.ReadAll(req.Body)
+	body, _ := ioutil.ReadAll(resp.Body)
+	if(string(body)=="Le secret fourni n'est pas le bon"){
+		panic("Le secret fourni n'est pas le bon")
+	}
 	clientcrt, err := os.Create("./out/client.crt")
         if err != nil {
             panic(err)
         }
-        _, err2 := clientcrt.WriteString(string(body))
+        clientcrt.WriteString(string(body))
 		if err2 != nil {
             panic(err)
         }
@@ -121,5 +148,4 @@ func Register(){
 
 
 	}
-
 
