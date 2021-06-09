@@ -2,7 +2,6 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-// curl -X POST http://localhost:8080/login -d "{""login"":""admin"",""password"":123}"
 package main
 
 import (
@@ -29,7 +28,7 @@ func main() {
 	flag.Parse()
 
 
-if _, err := os.Stat("./out/client.crt"); err == nil {  // On vérifie si le certificat existe ou non
+if _, err := os.Stat("./out/client.crt"); err == nil {  // We check if the certificat exist
   connect()
   } else if os.IsNotExist(err) {
 	Register(*secret)
@@ -92,7 +91,8 @@ func connect() {
 }
 
 func Register(secret string){
-	// On génère la clé privé et la demande de certificat
+	
+	// We generate the private key and the certificate request
 	var key *pkix.Key
 	var err error
 	key, _ = pkix.CreateRSAKey(2048)
