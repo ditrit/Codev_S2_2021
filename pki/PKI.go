@@ -77,9 +77,7 @@ func cert(w http.ResponseWriter, r *http.Request) {
             http.Error(w, err.Error(), 400)
             return
         }
-		//if err != nil {
-		//	body = []byte(fmt.Sprintf("error reading request body: %s", err))
-		//}
+
         if(stringInSlice(reg.Secret,get_secret("secrets.txt"))){ // We check if the secret is in the database
             write_secret("secrets.txt",reg.Secret,false)
             fmt.Print("secret supprimé")
@@ -89,6 +87,7 @@ func cert(w http.ResponseWriter, r *http.Request) {
             var crtOut *pkix.Certificate
             var csr *pkix.CertificateSigningRequest
             
+            //We sign the certificate request
 
             crtbytes,_:= ioutil.ReadFile("./out/ExempleCA.crt")
             crt,_:=pkix.NewCertificateFromPEM(crtbytes)
@@ -108,7 +107,7 @@ func cert(w http.ResponseWriter, r *http.Request) {
             w.Header().Set("Content-Type", "application/json")
             w.WriteHeader(http.StatusNotFound)
             w.Write(crtBytes)
-        } else {resp := fmt.Sprintf("Le secret fourni n'est pas le bon") // Si le secret n'est pas dans la liste, on renvoie un message négatif
+        } else {resp := fmt.Sprintf("Le secret fourni n'est pas le bon") // If the secret isn't in the list, it answers a negative message
 		w.Write([]byte(resp))
 		}
         
@@ -129,7 +128,7 @@ func main() {
     log.Fatal(http.ListenAndServe(":8080", r))
 }
 
-func get_secret(secrets string) []string{ //fonction permettant de transformer le fichier text en list de secrets
+func get_secret(secrets string) []string{ //function that transforms a text file in a secrets' list
 	data, err := ioutil.ReadFile(secrets)
 	if err != nil {
 	fmt.Println("File reading error", err)
@@ -141,7 +140,7 @@ var secrets_list=strings.FieldsFunc(string(data), f)
 return secrets_list
 }
 
-func write_secret(secrets string,code string,a bool){ //fonction permettant de transformer le fichier text en list de secrets
+func write_secret(secrets string,code string,a bool){ //functions that allows to write or delete a secret in a list of secrets
     data, _ := ioutil.ReadFile(secrets)
     if a {
         var string_secret = string(data)
@@ -160,7 +159,7 @@ func write_secret(secrets string,code string,a bool){ //fonction permettant de t
 
 	
 }
-func stringInSlice(a string, list []string) bool { //Vérifie la présence d'un élement dans une liste
+func stringInSlice(a string, list []string) bool { //Check if an element is in the list
     for _, b := range list {
         if b == a {
             fmt.Print("TRUE")
@@ -170,7 +169,7 @@ func stringInSlice(a string, list []string) bool { //Vérifie la présence d'un 
     return false
 }
 
-func del_el(a string, list []string ) []string { // Permet de supprimer un élement d'une liste
+func del_el(a string, list []string ) []string { // Allows to delete an element of the list
 	var c=-1
 	for i,n:= range list {
 		if n == a {
